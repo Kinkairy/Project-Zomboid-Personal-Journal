@@ -53,15 +53,19 @@ npm ci --ignore-scripts
 npm test
 ```
 
-The test gate validates the complete 1.02 payload against the pinned baseline,
-parses all six Lua payload files, and runs twelve behavior tests.
+The test gate validates the current runtime payload against the pinned 1.02
+baseline, verifies both retained release archives, parses all six Lua payload
+files, and runs twelve behavior tests.
 
 ## Repository policy
 
-This public repository contains the exact Mod payload, source-level validation,
-and only the retained 1.01 and 1.02 recovery artifacts. Server operations,
-credentials, private paths, raw logs, caches, and artwork with uncertain public
-redistribution provenance are intentionally excluded.
+The immutable `v1.02` tag and release archive preserve the exact published
+23-file payload. The `main` branch contains the same runtime and metadata files
+but omits the obsolete non-runtime `common/readme.txt`; the validator explicitly
+checks this boundary against the pinned 1.02 manifest. Only the retained 1.01 and
+1.02 recovery artifacts remain. Server operations, credentials, private paths,
+raw logs, caches, redundant Workshop-description copies, publisher-local build
+files, and artwork without confirmed public redistribution provenance are excluded.
 
 This is an unofficial community project and is not affiliated with The Indie Stone.
 Licensed under the [MIT License](LICENSE).

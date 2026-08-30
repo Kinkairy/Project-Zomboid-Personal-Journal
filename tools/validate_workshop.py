@@ -29,7 +29,8 @@ def main() -> int:
         "mod_info": mod / "mod.info",
         "version_mod_info": mod / "42.20" / "mod.info",
         "workshop_metadata": workshop / "workshop.txt",
-        "build_vdf": workshop / "legacyjournal_build.vdf",
+        "changelog": root / "CHANGELOG.md",
+        "technical_reference": workshop / "docs" / "TECHNICAL_REFERENCE.md",
         "options": media / "sandbox-options.txt",
         "shared": media / "lua" / "shared" / "legacyjournal" / "legacyjournal_shared.lua",
         "actions": media / "lua" / "shared" / "legacyjournal" / "legacyjournal_actions.lua",
@@ -60,6 +61,15 @@ def main() -> int:
     for label, path in scan_directories.items():
         if not path.is_dir():
             errors.append(f"Missing engine-scanned directory {label}: {path}")
+
+    retired_public_files = (
+        mod / "common" / "readme.txt",
+        workshop / "legacyjournal_build.vdf",
+        workshop / "workshop-description.bbcode",
+    )
+    for path in retired_public_files:
+        if path.exists():
+            errors.append(f"Retired or redundant public file must stay absent: {path}")
 
     test_names = (
         "skillbook_policy_test.lua",
@@ -152,8 +162,14 @@ def main() -> int:
         for path in mod.rglob("*")
         if path.is_file()
     }
-    if baseline_entries != current_entries:
-        errors.append("1.02 accepted baseline must exactly match the current Workshop payload")
+    baseline_runtime_entries = dict(baseline_entries)
+    retired_readme = baseline_runtime_entries.pop("common/readme.txt", None)
+    if retired_readme is None:
+        errors.append("1.02 accepted baseline must contain the retired common/readme.txt")
+    if baseline_runtime_entries != current_entries:
+        errors.append(
+            "Current runtime and metadata payload must match the 1.02 accepted baseline"
+        )
 
     require(text["mod_info"], r"B42\.20", "B42.20 test marker in mod.info")
     for metadata in (text["mod_info"], text["version_mod_info"]):
@@ -162,12 +178,14 @@ def main() -> int:
         require(metadata, r"^modversion=1\.02\s*$", "1.02 mod version")
     require(text["workshop_metadata"], r"^id=3788037313\s*$", "stable Workshop ID")
     require(text["workshop_metadata"], r"^visibility=public\s*$", "public Workshop visibility")
-    require(text["build_vdf"], r'"publishedfileid"\s+"3788037313"', "SteamCMD published file ID")
-    require(text["build_vdf"], r'"visibility"\s+"0"', "public SteamCMD visibility")
-    require(
-        text["build_vdf"],
-        r"修复显示问题，提高读写速度",
-        "concise release note",
+    changelog_versions = re.findall(r"^## ([0-9.]+)\s*$", text["changelog"], re.MULTILINE)
+    if changelog_versions != ["1.02", "1.01"]:
+        errors.append("Public changelog must contain only versions 1.02 and 1.01")
+    require(text["technical_reference"], r"12 个 Fengari 行为测试", "current behavior-test count in technical reference")
+    forbid(
+        text["technical_reference"],
+        r"MULTIPLAYER_SERVER_RUNBOOK|README_TEST|真人测试辅助 Mod|11 个 Fengari",
+        "Technical reference contains retired internal or stale test content",
     )
     for name in ("SkillXP", "KnownRecipes", "SkillBooks", "TrainingMedia"):
         require(

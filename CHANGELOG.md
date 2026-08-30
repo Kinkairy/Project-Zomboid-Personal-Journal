@@ -32,21 +32,3 @@
 - Keeps localized journal presentation separate from authoritative persisted
   state so moving a journal between containers does not lock in server-language
   display text.
-
-## 1.0.0
-
-- Added server-authoritative writing and recovery for skill XP, recipes,
-  skill-book progress/bonuses, and qualifying training media.
-- Added multiple independent journals, author ownership, in-game record time,
-  persistent localized names, and vanilla reading/writing presentation.
-- Added deterministic memory recovery from 50 to 100 percent.
-- Added multilingual sandbox labels and tooltips in Simplified Chinese,
-  Traditional Chinese, and English.
-- Added a sandbox option for recording and restoring watched training media,
-  while retaining independent read/write time controls.
-- Added exact-schema guards that leave versionless, older, malformed, and
-  future journal records untouched.
-- Aligned skill-XP delta checks with the persisted `0.001 XP` resolution to
-  prevent empty read actions caused by floating-point noise.
-- Fixed multiplayer write completion, native item-field synchronization,
-  skill-book page restoration, and localized names after container reloads.

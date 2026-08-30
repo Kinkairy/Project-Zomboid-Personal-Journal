@@ -13,7 +13,9 @@ Windows users can run `validate_workshop.ps1` for the static contract and
 The automated gate verifies:
 
 - exact 1.01 and 1.02 recovery archives and manifests;
-- exact alignment between the 1.02 accepted baseline and current payload;
+- exact alignment between the 1.02 accepted baseline and every current runtime
+  or metadata file; the retired non-runtime `common/readme.txt` is preserved
+  only in the immutable release artifact;
 - required Workshop metadata, translations, and server-authoritative protocol;
 - Lua syntax for all six payload files;
 - twelve deterministic behavior tests.
