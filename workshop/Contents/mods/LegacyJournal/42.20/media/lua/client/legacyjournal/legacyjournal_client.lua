@@ -291,12 +291,10 @@ local function onFillInventoryObjectContextMenu(playerIndex, context, items)
                 disableOption(writeOption, "ContextMenu_TooDark")
             elseif player:hasTrait(CharacterTrait.ILLITERATE) then
                 disableOption(writeOption, "ContextMenu_Illiterate")
-            elseif not LJ.canCurrentCharacterUpdate(player, item) then
-                disableOption(writeOption, "ContextMenu_LegacyJournal_WrongAuthor")
-            elseif not LJ.hasWritingTool(player) then
-                disableOption(writeOption, "ContextMenu_LegacyJournal_NeedWritingTool")
-            elseif not LJ.hasDelta(LJ.getWriteDelta(player, item)) then
-                disableOption(writeOption, "ContextMenu_LegacyJournal_NoRecordableContent")
+            elseif not LJ.canCurrentCharacterUpdate(player, item)
+                or not LJ.hasWritingTool(player)
+                or not LJ.hasDelta(LJ.getWriteDelta(player, item)) then
+                disableOption(writeOption, "ContextMenu_LegacyJournal_CannotWrite")
             end
 
             if written then
@@ -323,7 +321,7 @@ local function onFillInventoryObjectContextMenu(playerIndex, context, items)
                 elseif player:hasTrait(CharacterTrait.ILLITERATE) then
                     disableOption(readOption, "ContextMenu_Illiterate")
                 elseif LJ.isAuthor(player, item) and not LJ.hasDelta(readDelta) then
-                    disableOption(readOption, "ContextMenu_LegacyJournal_NoReadableContent")
+                    disableOption(readOption, "ContextMenu_EmptyNotebook")
                 elseif not LJ.isAuthor(player, item) and item:isEmptyPages() then
                     disableOption(readOption, "ContextMenu_EmptyNotebook")
                 end

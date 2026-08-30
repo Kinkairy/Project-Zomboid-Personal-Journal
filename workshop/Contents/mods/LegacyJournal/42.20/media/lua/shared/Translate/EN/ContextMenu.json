@@ -1,7 +1,4 @@
 {
     "ContextMenu_LegacyJournal_Write": "Write Journal",
-    "ContextMenu_LegacyJournal_NoRecordableContent": "There is nothing to record.",
-    "ContextMenu_LegacyJournal_NoReadableContent": "There is nothing to read.",
-    "ContextMenu_LegacyJournal_NeedWritingTool": "A pen or pencil is required.",
-    "ContextMenu_LegacyJournal_WrongAuthor": "Only the original author can update this journal."
+    "ContextMenu_LegacyJournal_CannotWrite": "Nothing to write"
 }

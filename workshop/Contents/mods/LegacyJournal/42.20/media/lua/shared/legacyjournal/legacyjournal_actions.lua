@@ -2,7 +2,7 @@ require "TimedActions/ISBaseTimedAction"
 require "legacyjournal/legacyjournal_shared"
 
 local LJ = LegacyJournal
-local BUILD = "20260825-stack-state-hotfix-1"
+local BUILD = "20260831-page-rate7of1000-localized-job-item-write-tooltip-guard-5"
 
 local function side()
     if isServer() then return "server" end
@@ -52,6 +52,23 @@ local function clearJournalJob(action)
     action.item:setJobType("")
     local container = action.item:getContainer()
     if container then container:setDrawDirty(true) end
+end
+
+local function journalJobType(actionText, item, character)
+    if not LJ.isWritten(item) then return actionText end
+
+    -- B42's expanded inventory stack draws only jobType while an item has
+    -- progress. Use the same player-aware name lookup as ISInventoryPane so
+    -- an already-written journal keeps its localized/custom title. Never
+    -- fall back to the no-argument getName(), which may expose "Diary".
+    local ok, displayName = pcall(function()
+        return item:getName(character)
+    end)
+    displayName = ok and tostring(displayName or "") or ""
+    if string.match(displayName, "%S") then
+        return actionText .. " " .. displayName
+    end
+    return actionText
 end
 
 local function canUseJournal(character)
@@ -164,7 +181,8 @@ end
 
 function LegacyJournalWriteAction:start()
     trace(self, "start")
-    self.item:setJobType(getText(LJ.WRITE_TEXT_KEY) .. " " .. self.item:getName())
+    self.item:setJobType(journalJobType(
+        getText(LJ.WRITE_TEXT_KEY), self.item, self.character))
     self.item:setJobDelta(self.startPage / self.totalPages)
     startJournalAnimation(self)
 end
@@ -214,7 +232,8 @@ end
 
 function LegacyJournalReadAction:start()
     trace(self, "start")
-    self.item:setJobType(getText("ContextMenu_Read") .. " " .. self.item:getName())
+    self.item:setJobType(journalJobType(
+        getText("ContextMenu_Read"), self.item, self.character))
     self.item:setJobDelta(self.startPage / self.totalPages)
     startJournalAnimation(self)
 end

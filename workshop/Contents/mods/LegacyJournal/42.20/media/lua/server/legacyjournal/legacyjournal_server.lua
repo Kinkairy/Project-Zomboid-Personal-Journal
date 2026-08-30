@@ -5,7 +5,7 @@ local LJ = LegacyJournal
 local pendingActions = {}
 local nextToken = 0
 local SYNC_CHUNK_SIZE = 50
-local BUILD = "20260825-stack-state-hotfix-1"
+local BUILD = "20260831-page-rate7of1000-localized-job-item-write-tooltip-guard-5"
 local ACTION_ABANDON_MS = 2 * 60 * 60 * 1000
 
 local function protocolTrace(event, player, action, itemId, reason)

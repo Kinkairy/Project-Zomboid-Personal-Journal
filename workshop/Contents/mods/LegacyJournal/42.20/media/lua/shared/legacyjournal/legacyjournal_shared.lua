@@ -12,7 +12,9 @@ LJ.NAME_TEXT_KEY = "IGUI_LegacyJournal_Name"
 LJ.RECORDED_AT_TEXT_KEY = "IGUI_LegacyJournal_RecordedAt"
 LJ.FIXED_TEST_ACTION_TIME = nil
 LJ.DEFAULT_ACTION_PROGRESS_PAGES = 1
-LJ.CONTENT_UNITS_PER_PAGE = 100
+LJ.ACTION_PAGE_RATE_NUMERATOR = 7
+LJ.ACTION_PAGE_RATE_DENOMINATOR = 1000
+LJ.ACTION_PROGRESS_MODEL_VERSION = 2
 
 LJ.VALID_TYPES = {
     ["Base.Diary1"] = true,
@@ -175,6 +177,16 @@ end
 
 function LJ.isSupportedItem(item)
     if not item then return false end
+
+    -- ISToolTipInv also renders fluid/resource objects in B42. Guard with
+    -- the same runtime type check used by vanilla before calling item APIs.
+    if type(instanceof) == "function" then
+        if not instanceof(item, "InventoryItem") then return false end
+        local fullType = item:getFullType()
+        return fullType and LJ.VALID_TYPES[fullType] == true
+    end
+
+    -- Offline Lua harnesses do not provide PZ's global instanceof().
     local ok, fullType = pcall(function() return item:getFullType() end)
     return ok and fullType and LJ.VALID_TYPES[fullType] == true
 end
@@ -1159,13 +1171,29 @@ function LJ.getSavedActionPage(item, action, signature, actorKey, totalPages)
     end
     totalPages = math.max(1, math.floor(tonumber(totalPages)
         or LJ.DEFAULT_ACTION_PROGRESS_PAGES))
+    local savedPage = math.max(0, math.floor(tonumber(md.LJ_progressPage) or 0))
+    local savedModelVersion = tonumber(md.LJ_progressModelVersion)
+
+    -- 1.01 checkpoints predate the explicit progress model. Preserve their
+    -- completed proportion when the 1.02 page-rate formula changes the total.
+    -- Unknown explicit versions are not guessed.
+    if savedModelVersion == nil then
+        local savedTotalPages = math.max(0,
+            math.floor(tonumber(md.LJ_progressTotalPages) or 0))
+        if savedTotalPages > 0 then
+            return clamp(math.floor(savedPage * totalPages / savedTotalPages),
+                0, totalPages)
+        end
+    elseif savedModelVersion ~= LJ.ACTION_PROGRESS_MODEL_VERSION then
+        return 0
+    end
 
     -- Knowledge can change between interruptions (even passive XP is enough
     -- to change the snapshot signature). Preserve work already completed on
     -- the same item by the same actor and clamp it to the newly calculated
     -- page count. The current signature is still saved below and remains a
     -- strict requirement for committing an active server token.
-    return clamp(math.floor(tonumber(md.LJ_progressPage) or 0), 0, totalPages)
+    return clamp(savedPage, 0, totalPages)
 end
 
 function LJ.saveActionProgress(item, action, signature, actorKey, page, totalPages)
@@ -1179,6 +1207,7 @@ function LJ.saveActionProgress(item, action, signature, actorKey, page, totalPag
     md.LJ_progressActor = tostring(actorKey or "")
     md.LJ_progressPage = page
     md.LJ_progressTotalPages = totalPages
+    md.LJ_progressModelVersion = LJ.ACTION_PROGRESS_MODEL_VERSION
     return true
 end
 
@@ -1190,6 +1219,7 @@ function LJ.clearActionProgress(item)
     md.LJ_progressActor = nil
     md.LJ_progressPage = nil
     md.LJ_progressTotalPages = nil
+    md.LJ_progressModelVersion = nil
 end
 
 function LJ.getRemainingActionTime(totalTime, startPage, totalPages)
@@ -1223,6 +1253,11 @@ local function getVanillaReadingTime(pageCount)
     return math.max(1, pageCount * minutesPerPage * minutesPerDay * 2)
 end
 
+function LJ.getPagesForContentUnits(units)
+    return math.max(1, math.ceil(math.max(0, tonumber(units) or 0)
+        * LJ.ACTION_PAGE_RATE_NUMERATOR / LJ.ACTION_PAGE_RATE_DENOMINATOR))
+end
+
 function LJ.getActionPageCount(action, delta)
     delta = delta or {}
     local xpBlocks = math.ceil(math.max(0, tonumber(delta.xp or 0) or 0) / 100)
@@ -1242,7 +1277,7 @@ function LJ.getActionPageCount(action, delta)
             + ((tonumber(delta.books or 0) or 0) * LJ.WRITE_PER_SKILL_BOOK)
             + ((tonumber(delta.vhs or 0) or 0) * LJ.WRITE_PER_VHS_LINE)
     end
-    return math.max(1, math.ceil(math.max(0, units) / LJ.CONTENT_UNITS_PER_PAGE))
+    return LJ.getPagesForContentUnits(units)
 end
 
 function LJ.getWriteTime(delta, player)
