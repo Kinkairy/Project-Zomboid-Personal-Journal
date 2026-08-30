@@ -1,0 +1,14 @@
+{
+    "Sandbox_LegacyJournal": "個人日誌",
+    "Sandbox_LegacyJournal_SkillXP": "記錄已有技能",
+    "Sandbox_LegacyJournal_KnownRecipes": "記錄已知配方",
+    "Sandbox_LegacyJournal_SkillBooks": "記錄已讀技能書",
+    "Sandbox_LegacyJournal_TrainingMedia": "記錄已看培訓媒體",
+    "Sandbox_LegacyJournal_TrainingMedia_tooltip": "控制已看培訓媒體是否記錄並可恢復。只記錄帶永久技能、經驗或配方獎勵的 CD/VHS，純娛樂媒體不受影響。",
+    "Sandbox_LegacyJournal_WriteTimeMultiplier": "書寫時間倍率",
+    "Sandbox_LegacyJournal_WriteTimeMultiplier_tooltip": "調整書寫個人日誌所需的時間。1.0 為標準速度，數值越小越快。",
+    "Sandbox_LegacyJournal_ReadTimeMultiplier": "閱讀時間倍率",
+    "Sandbox_LegacyJournal_ReadTimeMultiplier_tooltip": "調整閱讀個人日誌所需的時間。1.0 為標準速度，並受原版閱讀特質影響。",
+    "Sandbox_LegacyJournal_RecoveryPercent": "記憶恢復比例",
+    "Sandbox_LegacyJournal_RecoveryPercent_tooltip": "設定從個人日誌恢復的知識比例。技能經驗按數值計算；配方、已讀技能書和有效培訓媒體按各自記錄數量計算，不足一項時向上取整。重複閱讀不會累加恢復。"
+}

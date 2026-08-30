@@ -1,0 +1,10 @@
+Sandbox_CN = {
+    Sandbox_LegacyJournal = "个人日志",
+    Sandbox_LegacyJournal_SkillXP = "记录已有技能",
+    Sandbox_LegacyJournal_KnownRecipes = "记录已知配方",
+    Sandbox_LegacyJournal_SkillBooks = "记录已读技能书",
+    Sandbox_LegacyJournal_TrainingMedia = "记录已看培训媒体",
+    Sandbox_LegacyJournal_WriteTimeMultiplier = "书写时间倍率",
+    Sandbox_LegacyJournal_ReadTimeMultiplier = "阅读时间倍率",
+    Sandbox_LegacyJournal_RecoveryPercent = "记忆恢复比例",
+}

@@ -1,0 +1,14 @@
+{
+    "Sandbox_LegacyJournal": "Personal Journal",
+    "Sandbox_LegacyJournal_SkillXP": "Record existing skills",
+    "Sandbox_LegacyJournal_KnownRecipes": "Record known recipes",
+    "Sandbox_LegacyJournal_SkillBooks": "Record read skill books",
+    "Sandbox_LegacyJournal_TrainingMedia": "Record watched training media",
+    "Sandbox_LegacyJournal_TrainingMedia_tooltip": "Controls whether watched training media are written to the journal and can be restored.",
+    "Sandbox_LegacyJournal_WriteTimeMultiplier": "Writing time multiplier",
+    "Sandbox_LegacyJournal_WriteTimeMultiplier_tooltip": "Adjusts the time required to write a personal journal. 1.0 is the standard speed; lower values are faster.",
+    "Sandbox_LegacyJournal_ReadTimeMultiplier": "Reading time multiplier",
+    "Sandbox_LegacyJournal_ReadTimeMultiplier_tooltip": "Adjusts the time required to read a personal journal. 1.0 is the standard speed and vanilla reading traits still apply.",
+    "Sandbox_LegacyJournal_RecoveryPercent": "Memory recovery percentage",
+    "Sandbox_LegacyJournal_RecoveryPercent_tooltip": "Sets how much recorded knowledge a personal journal restores. Skill XP is scaled numerically; recipes, read skill books, and qualifying training media are selected by their recorded counts, rounded up to one entry. Repeated reading cannot stack recovery."
+}

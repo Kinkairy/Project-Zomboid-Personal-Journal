@@ -1,0 +1,7 @@
+{
+    "ContextMenu_LegacyJournal_Write": "寫日誌",
+    "ContextMenu_LegacyJournal_NoRecordableContent": "沒有可記錄的內容。",
+    "ContextMenu_LegacyJournal_NoReadableContent": "沒有可閱讀的內容。",
+    "ContextMenu_LegacyJournal_NeedWritingTool": "需要一支筆或鉛筆。",
+    "ContextMenu_LegacyJournal_WrongAuthor": "只有原作者可以更新這本日誌。"
+}

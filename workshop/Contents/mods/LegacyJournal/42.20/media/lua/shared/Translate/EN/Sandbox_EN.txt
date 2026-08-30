@@ -1,0 +1,10 @@
+Sandbox_EN = {
+    Sandbox_LegacyJournal = "Personal Journal",
+    Sandbox_LegacyJournal_SkillXP = "Record existing skills",
+    Sandbox_LegacyJournal_KnownRecipes = "Record known recipes",
+    Sandbox_LegacyJournal_SkillBooks = "Record read skill books",
+    Sandbox_LegacyJournal_TrainingMedia = "Record watched training media",
+    Sandbox_LegacyJournal_WriteTimeMultiplier = "Writing time multiplier",
+    Sandbox_LegacyJournal_ReadTimeMultiplier = "Reading time multiplier",
+    Sandbox_LegacyJournal_RecoveryPercent = "Memory recovery percentage",
+}
