@@ -16,19 +16,3 @@
   now has one maintained JSON sandbox translation source per locale.
 - Consolidates Mod-specific write-disabled reasons into one vanilla-style
   tooltip; read-disabled state continues to reuse vanilla `ContextMenu_EmptyNotebook`.
-
-## 1.01
-
-- Fixed multiplayer journal writing and reading completion.
-- Added server-authoritative page checkpoints and interrupted-action continuation.
-- Added support for both vanilla diary variants.
-- Generates writing and reading page counts from the amount of knowledge being
-  recorded or restored, then applies the vanilla per-page book timing formula.
-- Preserves server-accepted pages across repeated interruptions, including
-  cases where the survivor learns additional state between attempts.
-- Records exact skill-book read pages and active vanilla multiplier state.
-- Prevents duplicate context-menu entries for stacked diaries by normalizing
-  Build 42 inventory selections to unique actual item instances.
-- Keeps localized journal presentation separate from authoritative persisted
-  state so moving a journal between containers does not lock in server-language
-  display text.

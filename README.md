@@ -5,8 +5,7 @@ death, a successor on the same multiplayer account can recover the physical
 journal and read it to restore only the knowledge the new character is missing.
 
 Current release: **1.02** for Project Zomboid Build 42.20. Version 1.02 is the
-current and sole accepted rollback baseline; 1.01 is retained as the previous
-release.
+current and sole accepted rollback baseline.
 
 - [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3788037313)
 - Mod ID: `LegacyJournal`
@@ -44,28 +43,15 @@ Subscribe through Steam Workshop, or copy
 The included `workshop/install_local.ps1` performs a verified local Windows
 installation with rollback.
 
-## Testing
-
-Requires Python 3 and Node.js 22 or newer:
-
-```bash
-npm ci --ignore-scripts
-npm test
-```
-
-The test gate validates the current runtime payload against the pinned 1.02
-baseline, verifies both retained release archives, parses all six Lua payload
-files, and runs twelve behavior tests.
-
 ## Repository policy
 
 The immutable `v1.02` tag and release archive preserve the exact published
 23-file payload. The `main` branch contains the same runtime and metadata files
-but omits the obsolete non-runtime `common/readme.txt`; the validator explicitly
-checks this boundary against the pinned 1.02 manifest. Only the retained 1.01 and
-1.02 recovery artifacts remain. Server operations, credentials, private paths,
-raw logs, caches, redundant Workshop-description copies, publisher-local build
-files, and artwork without confirmed public redistribution provenance are excluded.
+but omits the obsolete non-runtime `common/readme.txt`. The repository retains
+only the 1.02 rollback ZIP, manifest, and checksum. Internal test harnesses,
+server operations, credentials, private paths, raw logs, caches, redundant
+Workshop-description copies, publisher-local build files, and artwork without
+confirmed public redistribution provenance are excluded.
 
 This is an unofficial community project and is not affiliated with The Indie Stone.
 Licensed under the [MIT License](LICENSE).
