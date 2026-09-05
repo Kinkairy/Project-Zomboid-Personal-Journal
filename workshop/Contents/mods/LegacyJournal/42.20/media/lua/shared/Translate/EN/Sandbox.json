@@ -4,7 +4,7 @@
     "Sandbox_LegacyJournal_KnownRecipes": "Record known recipes",
     "Sandbox_LegacyJournal_SkillBooks": "Record read skill books",
     "Sandbox_LegacyJournal_TrainingMedia": "Record watched training media",
-    "Sandbox_LegacyJournal_TrainingMedia_tooltip": "Controls whether watched training media are written to the journal and can be restored.",
+    "Sandbox_LegacyJournal_TrainingMedia_tooltip": "Controls whether watched training media are written to the journal and can be restored. Only CDs and VHS tapes with permanent skill, experience, or recipe rewards are recorded; entertainment-only media are unaffected.",
     "Sandbox_LegacyJournal_WriteTimeMultiplier": "Writing time multiplier",
     "Sandbox_LegacyJournal_WriteTimeMultiplier_tooltip": "Adjusts the time required to write a personal journal. 1.0 is the standard speed; lower values are faster.",
     "Sandbox_LegacyJournal_ReadTimeMultiplier": "Reading time multiplier",

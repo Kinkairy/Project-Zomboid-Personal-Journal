@@ -1,274 +1,211 @@
 require "TimedActions/ISBaseTimedAction"
+require "TimedActions/ISWriteSomething"
 require "legacyjournal/legacyjournal_shared"
 
 local LJ = LegacyJournal
-local BUILD = "20260831-page-rate7of1000-localized-job-item-write-tooltip-guard-5"
+LegacyJournalAction = ISBaseTimedAction:derive("LegacyJournalAction")
 
-local function side()
-    if isServer() then return "server" end
-    if isClient() then return "client" end
-    return "singleplayer"
+local function trace(self, event)
+    print("[LegacyJournal] native build=" .. LJ.BUILD .. " kind=" .. tostring(self.kind)
+        .. " event=" .. event .. " item=" .. tostring(self.item and self.item:getID()))
 end
 
-local function trace(action, event)
-    local itemId = action.item and action.item:getID() or "nil"
-    print("[LegacyJournal] action build=" .. BUILD
-        .. " side=" .. side()
-        .. " kind=" .. tostring(action.kind)
-        .. " event=" .. event
-        .. " item=" .. tostring(itemId))
+function LegacyJournalAction:isValid()
+    return not self.rejected and LJ.isActionContextValid(self.character, self.item, self.kind)
 end
 
-local function isBook(item)
-    return item and string.match(item:getType(), "Book") ~= nil
-end
-
-local function startJournalAnimation(action)
-    local item = action.item
-    if item:getReadType() then
-        action:setAnimVariable("ReadType", item:getReadType())
-    elseif item:getType() == "Newspaper" or item:hasTag(ItemTag.NEWSPAPER_READ) then
-        action:setAnimVariable("ReadType", "newspaper")
-    elseif item:hasTag(ItemTag.PICTURE) then
-        action:setAnimVariable("ReadType", "photo")
-    else
-        action:setAnimVariable("ReadType", "book")
+-- NetTimedAction rebuilds this plan on the authoritative side. None of these
+-- fields are constructor arguments, so the client cannot supply the workload.
+function LegacyJournalAction:getDuration()
+    if self.rejected then return 1 end
+    if not self.plan then
+        local delta = self.kind == "write" and LJ.getWriteDelta(self.character, self.item)
+            or LJ.getReadDelta(self.character, self.item)
+        local pages = LJ.getActionPageCount(self.kind, delta)
+        local actor = LJ.getActionActorKey(self.character)
+        local signature = LJ.getActionSignature(self.kind, self.item, delta)
+        local startPage = LJ.getSavedActionPage(self.item, self.kind, signature, actor, pages)
+        local totalTime = self.kind == "write" and LJ.getWriteTime(delta, self.character)
+            or LJ.getReadTime(delta, self.character)
+        self.plan = { pages = pages, startPage = startPage, actor = actor,
+            signature = signature, lastPage = startPage,
+            duration = LJ.getRemainingActionTime(totalTime, startPage, pages) }
     end
-    action:setActionAnim(CharacterActionAnims.Read)
-    action:setOverrideHandModels(nil, item)
-    action.character:setReading(true)
-    action.character:reportEvent("EventRead")
-    action.character:playSound(isBook(item) and "OpenBook" or "OpenMagazine")
+    return self.plan.duration
 end
 
-local function stopJournalAnimation(action)
-    action.character:setReading(false)
-    action.character:playSound(isBook(action.item) and "CloseBook" or "CloseMagazine")
+function LegacyJournalAction:isUsingTimeout()
+    -- Match native books: a journal may legitimately take over 30 real minutes.
+    return false
 end
 
-local function clearJournalJob(action)
-    action.character:setReading(false)
-    action.item:setJobDelta(0.0)
-    action.item:setJobType("")
-    local container = action.item:getContainer()
+function LegacyJournalAction:isBook(item)
+    return ISWriteSomething.isBook(self, item)
+end
+
+function LegacyJournalAction:start()
+    self:getDuration()
+    ISWriteSomething.start(self)
+    self.character:setReading(true)
+    local label = getText(self.kind == "write" and LJ.WRITE_TEXT_KEY or "ContextMenu_Read")
+    if LJ.isWritten(self.item) then
+        if not isServer() then
+            LJ.refreshJournalPresentation(self.item)
+        end
+        local name = tostring(self.item:getName(self.character) or "")
+        if name:match("%S") then label = label .. " " .. name end
+    end
+    self.item:setJobType(label)
+    self.item:setJobDelta(self.plan.startPage / self.plan.pages)
+    trace(self, "start")
+end
+
+local function pageAt(self, progress)
+    local p = self.plan
+    progress = math.max(0, math.min(1, tonumber(progress) or 0))
+    return p.startPage + math.floor((p.pages - p.startPage) * progress + 0.000001)
+end
+
+function LegacyJournalAction:saveProgress()
+    if isClient() or self.finished or self.rejected or not self.plan then return end
+    if not self.item or LJ.findItemById(self.character, self.item:getID()) ~= self.item then return end
+    if LJ.getActionActorKey(self.character) ~= self.plan.actor then return end
+    local progress = isServer() and self.netAction:getProgress() or self:getJobDelta()
+    local page = pageAt(self, progress)
+    if page <= self.plan.lastPage then return end
+    self.plan.lastPage = page
+    LJ.saveActionProgress(self.item, self.kind, self.plan.signature,
+        self.plan.actor, page, self.plan.pages)
+    if isServer() then self.item:syncItemFields() end
+end
+
+function LegacyJournalAction:update()
+    local p = self.plan
+    local progress = math.max(0, math.min(1, self:getJobDelta()))
+    self.item:setJobDelta((p.startPage + (p.pages - p.startPage) * progress) / p.pages)
+    if isClient() then
+        local page = pageAt(self, progress)
+        if page > (self.lastRequestedPage or p.startPage) then
+            self.lastRequestedPage = page
+            -- A hint to persist progress, not a submitted progress value.
+            -- The server samples its own NetTimedAction clock. No token,
+            -- duration, page, knowledge snapshot or commit is sent.
+            sendClientCommand(self.character, LJ.MODULE, "checkpoint", {
+                itemId = self.item:getID(), kind = self.kind,
+            })
+        end
+    elseif not isServer() then
+        self:saveProgress()
+    end
+end
+
+function LegacyJournalAction:serverStart()
+    self:getDuration()
+    local active = LJ.activeJournalActions[self.character]
+    if not LJ.canPerformAction(self.character, self.item, self.kind) or active then
+        self.rejected = true
+        self.netAction:forceComplete()
+        return
+    end
+    LJ.activeJournalActions[self.character] = self
+    ISWriteSomething.serverStart(self)
+    trace(self, "server-start")
+end
+
+local function release(self)
+    if isServer() and LJ.activeJournalActions[self.character] == self then
+        LJ.activeJournalActions[self.character] = nil
+        ISWriteSomething.serverStop(self)
+    end
+end
+
+function LegacyJournalAction:serverStop()
+    self:saveProgress()
+    release(self)
+    trace(self, "server-stop")
+end
+
+local function clearJob(self)
+    self.character:setReading(false)
+    self.item:setJobDelta(0)
+    self.item:setJobType("")
+    local container = self.item:getContainer()
     if container then container:setDrawDirty(true) end
 end
 
-local function journalJobType(actionText, item, character)
-    if not LJ.isWritten(item) then return actionText end
+function LegacyJournalAction:stop()
+    if not isClient() then self:saveProgress() end
+    clearJob(self)
+    self.character:playSound(self:isBook(self.item) and "CloseBook" or "CloseMagazine")
+    ISBaseTimedAction.stop(self)
+end
 
-    -- B42's expanded inventory stack draws only jobType while an item has
-    -- progress. Use the same player-aware name lookup as ISInventoryPane so
-    -- an already-written journal keeps its localized/custom title. Never
-    -- fall back to the no-argument getName(), which may expose "Diary".
-    local ok, displayName = pcall(function()
-        return item:getName(character)
+function LegacyJournalAction:forceCancel()
+    -- Queued-but-not-started actions have no progress or animation to clear.
+    ISBaseTimedAction.forceCancel(self)
+end
+
+function LegacyJournalAction:perform()
+    -- The engine only releases a multiplayer action after authoritative Done.
+    clearJob(self)
+    self.character:playSound(self:isBook(self.item) and "CloseBook" or "CloseMagazine")
+    ISBaseTimedAction.perform(self)
+end
+
+function LegacyJournalAction:complete()
+    if isClient() or self.finished or self.rejected then return false end
+    if isServer() and LJ.activeJournalActions[self.character] ~= self then return false end
+    local valid = self:isValid()
+        and LJ.getActionActorKey(self.character) == self.plan.actor
+        and LJ.canPerformAction(self.character, self.item, self.kind)
+    if valid then
+        local delta = self.kind == "write" and LJ.getWriteDelta(self.character, self.item)
+            or LJ.getReadDelta(self.character, self.item)
+        valid = LJ.getActionSignature(self.kind, self.item, delta) == self.plan.signature
+    end
+    if not valid then
+        self:saveProgress()
+        self.finished = true
+        release(self)
+        trace(self, "rejected-state-changed")
+        return false
+    end
+    self.finished = true
+    local ok, applied, fields = pcall(function()
+        if self.kind == "write" then return LJ.commitWrite(self.character, self.item) end
+        return LJ.applyRead(self.character, self.item)
     end)
-    displayName = ok and tostring(displayName or "") or ""
-    if string.match(displayName, "%S") then
-        return actionText .. " " .. displayName
+    release(self)
+    if not ok then error(applied) end
+    if applied and isServer() then
+        self.item:syncItemFields()
+        LJ.sendJournalResult(self.character, self.item, fields)
     end
-    return actionText
+    trace(self, applied and "complete" or "rejected-empty")
+    return applied == true
 end
 
-local function canUseJournal(character)
-    if character:tooDarkToRead() then return false end
-    local vehicle = character:getVehicle()
-    if vehicle and vehicle:isDriver(character) then
-        return not vehicle:isEngineRunning() or vehicle:getSpeed2D() == 0
+function LegacyJournalAction:animEvent(event, parameter)
+    ISWriteSomething.animEvent(self, event, parameter)
+end
+
+-- Parameter names must equal stored fields: NetTimedAction serializes these
+-- names and reconstructs new(character,item,kind) on the server.
+function LegacyJournalAction:new(character, item, kind)
+    local o = ISBaseTimedAction.new(self, character)
+    o.character = character
+    o.item = item
+    o.kind = kind
+    if not character or not LJ.isSupportedItem(item)
+        or (kind ~= "write" and kind ~= "read") then
+        o.rejected = true
     end
-    return true
+    o.ignoreHandsWounds = true
+    o.forceProgressBar = true
+    o.caloriesModifier = kind == "read" and 0.5 or 1
+    -- Native Accept supplies the server duration to a waiting MP action.
+    o.maxTime = isClient() and -1 or o:getDuration()
+    return o
 end
 
-local function completedPage(action)
-    local remainingPages = action.totalPages - action.startPage
-    local progress = math.max(0, math.min(1, tonumber(action:getJobDelta()) or 0))
-    return math.min(action.totalPages,
-        action.startPage + math.floor((progress * remainingPages) + 0.000001))
-end
-
-local function overallProgress(action)
-    local remainingPages = action.totalPages - action.startPage
-    local progress = math.max(0, math.min(1, tonumber(action:getJobDelta()) or 0))
-    return (action.startPage + (progress * remainingPages)) / action.totalPages
-end
-
-local function saveProgress(action, command)
-    if not action.item then return end
-    local page = completedPage(action)
-    if command == "checkpoint" and page <= action.lastCheckpointPage then return end
-    action.lastCheckpointPage = page
-
-    if isClient() then
-        sendClientCommand(action.character, LJ.MODULE, command, {
-            action = action.kind,
-            itemId = action.item:getID(),
-            token = action.token,
-            page = page,
-        })
-    elseif not isServer() then
-        LJ.saveActionProgress(action.item, action.kind, action.signature,
-            action.actorKey, page, action.totalPages)
-    end
-end
-
-local function performAction(action)
-    trace(action, "perform")
-    if isClient() then
-        sendClientCommand(action.character, LJ.MODULE, "commit", {
-            action = action.kind,
-            itemId = action.item:getID(),
-            token = action.token,
-        })
-    elseif not isServer() then
-        if action.kind == "write" then
-            LJ.commitWrite(action.character, action.item)
-        else
-            LJ.applyRead(action.character, action.item)
-        end
-    end
-    clearJournalJob(action)
-    stopJournalAnimation(action)
-    ISBaseTimedAction.perform(action)
-end
-
-local function stopAction(action)
-    trace(action, "stop")
-    saveProgress(action, "cancel")
-    clearJournalJob(action)
-    stopJournalAnimation(action)
-    ISBaseTimedAction.stop(action)
-end
-
-local function forceCancelAction(action)
-    trace(action, "force-cancel")
-    saveProgress(action, "cancel")
-    clearJournalJob(action)
-    stopJournalAnimation(action)
-    ISBaseTimedAction.forceCancel(action)
-end
-
-local function initializeAction(action, character, item, maxTime, token, kind,
-        startPage, totalPages, signature, actorKey)
-    action.character = character
-    action.item = item
-    action.stopOnWalk = true
-    action.stopOnRun = true
-    action.maxTime = maxTime
-    action.token = token
-    action.kind = kind
-    action.startPage = math.max(0, math.floor(tonumber(startPage) or 0))
-    action.totalPages = math.max(1, math.floor(tonumber(totalPages)
-        or LJ.DEFAULT_ACTION_PROGRESS_PAGES))
-    action.startPage = math.min(action.startPage, action.totalPages)
-    action.lastCheckpointPage = action.startPage
-    action.signature = signature
-    action.actorKey = actorKey
-    action.ignoreHandsWounds = false
-    action.forceProgressBar = true
-    return action
-end
-
-LegacyJournalWriteAction = ISBaseTimedAction:derive("LegacyJournalWriteAction")
-
-function LegacyJournalWriteAction:isValid()
-    if not self.character or self.character:isDead() then return false end
-    if not self.item or not LJ.isSupportedItem(self.item) then return false end
-    if not canUseJournal(self.character) then return false end
-    local inventory = self.character:getInventory()
-    return inventory and inventory:containsRecursive(self.item)
-end
-
-function LegacyJournalWriteAction:start()
-    trace(self, "start")
-    self.item:setJobType(journalJobType(
-        getText(LJ.WRITE_TEXT_KEY), self.item, self.character))
-    self.item:setJobDelta(self.startPage / self.totalPages)
-    startJournalAnimation(self)
-end
-
-function LegacyJournalWriteAction:update()
-    self.item:setJobDelta(overallProgress(self))
-    saveProgress(self, "checkpoint")
-end
-
-function LegacyJournalWriteAction:stop()
-    stopAction(self)
-end
-
-function LegacyJournalWriteAction:forceCancel()
-    forceCancelAction(self)
-end
-
-function LegacyJournalWriteAction:perform()
-    performAction(self)
-end
-
-function LegacyJournalWriteAction:new(character, item, maxTime, token,
-        startPage, totalPages, signature, actorKey)
-    return initializeAction(
-        ISBaseTimedAction.new(self, character),
-        character,
-        item,
-        maxTime,
-        token,
-        "write",
-        startPage,
-        totalPages,
-        signature,
-        actorKey
-    )
-end
-
-LegacyJournalReadAction = ISBaseTimedAction:derive("LegacyJournalReadAction")
-
-function LegacyJournalReadAction:isValid()
-    if not self.character or self.character:isDead() then return false end
-    if not self.item or not LJ.isWritten(self.item) then return false end
-    if not canUseJournal(self.character) then return false end
-    local inventory = self.character:getInventory()
-    return inventory and inventory:containsRecursive(self.item)
-end
-
-function LegacyJournalReadAction:start()
-    trace(self, "start")
-    self.item:setJobType(journalJobType(
-        getText("ContextMenu_Read"), self.item, self.character))
-    self.item:setJobDelta(self.startPage / self.totalPages)
-    startJournalAnimation(self)
-end
-
-function LegacyJournalReadAction:update()
-    self.item:setJobDelta(overallProgress(self))
-    saveProgress(self, "checkpoint")
-end
-
-function LegacyJournalReadAction:stop()
-    stopAction(self)
-end
-
-function LegacyJournalReadAction:forceCancel()
-    forceCancelAction(self)
-end
-
-function LegacyJournalReadAction:perform()
-    performAction(self)
-end
-
-function LegacyJournalReadAction:new(character, item, maxTime, token,
-        startPage, totalPages, signature, actorKey)
-    return initializeAction(
-        ISBaseTimedAction.new(self, character),
-        character,
-        item,
-        maxTime,
-        token,
-        "read",
-        startPage,
-        totalPages,
-        signature,
-        actorKey
-    )
-end
-
-print("[LegacyJournal] actions loaded build=" .. BUILD .. " side=" .. side())
+print("[LegacyJournal] actions loaded build=" .. LJ.BUILD)

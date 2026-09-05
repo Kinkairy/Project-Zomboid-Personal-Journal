@@ -6,6 +6,7 @@ local LJ = LegacyJournal
 LJ._permanentRewardMedia = nil
 
 LJ.VERSION = 6
+LJ.BUILD = "1.3-native-actions-release"
 LJ.MODULE = "LegacyJournal"
 LJ.WRITE_TEXT_KEY = "ContextMenu_LegacyJournal_Write"
 LJ.NAME_TEXT_KEY = "IGUI_LegacyJournal_Name"
@@ -156,17 +157,6 @@ end
 function LJ.getActionTimeMultiplier(action, player)
     local optionName = action == "read" and "ReadTimeMultiplier" or "WriteTimeMultiplier"
     local multiplier = LJ.getOptionNumber(optionName, 1.0, 0.1, 10.0)
-    if action == "read" and player then
-        if player:hasTrait(CharacterTrait.FAST_READER) then multiplier = multiplier * 0.7 end
-        if player:hasTrait(CharacterTrait.SLOW_READER) then multiplier = multiplier * 1.3 end
-        local okGlasses, hasReadingGlasses = pcall(function()
-            local worn = player:getWornItem("Eyes")
-            return worn and worn:hasTag(ItemTag.READING_GLASSES)
-        end)
-        if okGlasses and hasReadingGlasses then multiplier = multiplier * 0.9 end
-        local okSitting, sitting = pcall(function() return player:isSitOnGround() end)
-        if okSitting and sitting then multiplier = multiplier * 0.9 end
-    end
     return math.max(0.01, multiplier)
 end
 
@@ -1282,6 +1272,7 @@ end
 
 function LJ.getWriteTime(delta, player)
     if LJ.FIXED_TEST_ACTION_TIME then return LJ.FIXED_TEST_ACTION_TIME end
+    if player and player:isTimedActionInstant() then return 1 end
     local time = getVanillaReadingTime(LJ.getActionPageCount("write", delta))
     time = time * LJ.getActionTimeMultiplier("write", player)
     return math.max(1, math.floor(time))
@@ -1289,9 +1280,53 @@ end
 
 function LJ.getReadTime(delta, player)
     if LJ.FIXED_TEST_ACTION_TIME then return LJ.FIXED_TEST_ACTION_TIME end
-    local time = getVanillaReadingTime(LJ.getActionPageCount("read", delta))
+    require "TimedActions/ISReadABook"
+    if player:isTimedActionInstant() then return 1 end
+    local pages = LJ.getActionPageCount("read", delta)
+    -- A Lua-only workload view for the vanilla duration calculation. Never
+    -- change the real Diary's page counters or invoke literature completion.
+    -- checkLevel returns immediately for a non-skill book; setters below only
+    -- affect this disposable view, not player or journal state.
+    local view = {
+        getNumberOfPages = function() return pages end,
+        getSkillTrained = function() return nil end,
+        getFullType = function() return "Base.Diary1" end,
+        setAlreadyReadPages = function() end,
+        getAlreadyReadPages = function() return 0 end,
+        hasTag = function() return false end,
+    }
+    local minutes = getSandboxOptions():getOptionByName("MinutesPerPage"):getValue() or 2
+    if minutes < 0 then minutes = 2 end
+    local time = ISReadABook.getDuration({
+        character = player, item = view, minutesPerPage = minutes,
+    })
     time = time * LJ.getActionTimeMultiplier("read", player)
     return math.max(1, math.floor(time))
+end
+
+function LJ.isActionContextValid(player, item, kind)
+    if not player or player:isDead() or not LJ.isSupportedItem(item) then return false end
+    if LJ.findItemById(player, item:getID()) ~= item then return false end
+    if player:tooDarkToRead() or player:hasTrait(CharacterTrait.ILLITERATE) then return false end
+    local vehicle = player:getVehicle()
+    if vehicle and vehicle:isDriver(player) and vehicle:isEngineRunning()
+        and vehicle:getSpeed2D() ~= 0 then return false end
+    if kind == "write" then return LJ.canCurrentCharacterUpdate(player, item) end
+    if kind == "read" then return LJ.isAuthor(player, item) end
+    return false
+end
+
+-- Snapshot/tool work is restricted to transaction boundaries, never the
+-- timed action's per-frame validity callback.
+function LJ.canPerformAction(player, item, kind)
+    if not LJ.isActionContextValid(player, item, kind) then return false end
+    if kind == "write" then
+        return LJ.hasWritingTool(player)
+            and LJ.hasDelta(LJ.getWriteDelta(player, item))
+    elseif kind == "read" then
+        return LJ.hasDelta(LJ.getReadDelta(player, item))
+    end
+    return false
 end
 
 function LJ.commitWrite(player, item)
@@ -1481,4 +1516,4 @@ function LJ.findItemById(player, itemId)
     return nil
 end
 
-print("[LegacyJournal] shared loaded")
+print("[LegacyJournal] shared loaded build=" .. LJ.BUILD)

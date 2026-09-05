@@ -6,128 +6,9 @@ require "legacyjournal/legacyjournal_actions"
 require "legacyjournal/legacyjournal_presentation"
 
 local LJ = LegacyJournal
-local pendingBegins = {}
-
-local function actionKey(action, itemId)
-    return tostring(action) .. ":" .. tostring(itemId)
-end
-
--- ============================================================
--- Context menu
--- ============================================================
-
-local function getLocalResume(player, item, action, delta, totalTime)
-    local totalPages = LJ.getActionPageCount(action, delta)
-    local signature = LJ.getActionSignature(action, item, delta)
-    local actorKey = LJ.getActionActorKey(player)
-    local startPage = LJ.getSavedActionPage(item, action, signature,
-        actorKey, totalPages)
-    return LJ.getRemainingActionTime(totalTime, startPage, totalPages),
-        startPage, totalPages, signature, actorKey
-end
-
-local function queueWrite(player, item, duration, token, startPage, totalPages,
-        signature, actorKey)
-    local delta = LJ.getWriteDelta(player, item)
-    if not duration and not LJ.hasDelta(delta) then return end
-
-    if not duration then
-        duration, startPage, totalPages, signature, actorKey = getLocalResume(
-            player, item, "write", delta, LJ.getWriteTime(delta, player))
-    end
-
-    ISTimedActionQueue.add(
-        LegacyJournalWriteAction:new(
-            player,
-            item,
-            duration,
-            token,
-            startPage,
-            totalPages,
-            signature,
-            actorKey
-        )
-    )
-end
-
-local function queueRead(player, item, duration, token, startPage, totalPages,
-        signature, actorKey)
-    local delta = LJ.getReadDelta(player, item)
-    if not duration and not LJ.hasDelta(delta) then return end
-
-    if not duration then
-        duration, startPage, totalPages, signature, actorKey = getLocalResume(
-            player, item, "read", delta, LJ.getReadTime(delta, player))
-    end
-
-    ISTimedActionQueue.add(
-        LegacyJournalReadAction:new(
-            player,
-            item,
-            duration,
-            token,
-            startPage,
-            totalPages,
-            signature,
-            actorKey
-        )
-    )
-end
-
-local function sendActionRequest(player, item, action)
-    if not isClient() then
-        if action == "write" then queueWrite(player, item) else queueRead(player, item) end
-        return
-    end
-
-    local key = actionKey(action, item:getID())
-    if pendingBegins[key] then return end
-    pendingBegins[key] = true
-    sendClientCommand(player, LJ.MODULE, "begin", {
-        action = action,
-        itemId = item:getID(),
-    })
-end
-
-LegacyJournalBeginRequestAction = ISBaseTimedAction:derive(
-    "LegacyJournalBeginRequestAction")
-
-function LegacyJournalBeginRequestAction:isValid()
-    return self.character and not self.character:isDead()
-        and self.item and LJ.isSupportedItem(self.item)
-end
-
-function LegacyJournalBeginRequestAction:perform()
-    local inventory = self.character:getInventory()
-    if inventory and inventory:containsRecursive(self.item) then
-        sendActionRequest(self.character, self.item, self.kind)
-    end
-    ISBaseTimedAction.perform(self)
-end
-
-function LegacyJournalBeginRequestAction:new(character, item, kind)
-    local action = ISBaseTimedAction.new(self, character)
-    action.item = item
-    action.kind = kind
-    action.maxTime = 0
-    action.stopOnWalk = false
-    action.stopOnRun = false
-    return action
-end
-
-local function requestAction(player, item, action)
-    local inventory = player:getInventory()
-    if inventory and inventory:containsRecursive(item) then
-        sendActionRequest(player, item, action)
-        return
-    end
-
-    -- Match vanilla item actions: take a floor/container item first, then
-    -- request the server-authoritative journal action after transfer finishes.
+local function requestAction(player, item, kind)
     ISInventoryPaneContextMenu.transferIfNeeded(player, item)
-    ISTimedActionQueue.add(
-        LegacyJournalBeginRequestAction:new(player, item, action)
-    )
+    ISTimedActionQueue.add(LegacyJournalAction:new(player, item, kind))
 end
 
 local function disableOption(option, reasonKey)
@@ -230,29 +111,6 @@ local function onServerCommand(module, command, args)
         applyReadFieldChunk(args)
         return
     end
-    if command ~= "begin" and command ~= "beginDenied" then return end
-    if not args or not args.action or args.itemId == nil then return end
-
-    local key = actionKey(args.action, args.itemId)
-    pendingBegins[key] = nil
-    if command ~= "begin" then return end
-
-    local duration = tonumber(args.duration)
-    if (args.action ~= "write" and args.action ~= "read")
-        or not duration or duration <= 0 or not args.token then
-        return
-    end
-
-    local player = getSpecificPlayer(0)
-    local item = LJ.findItemById(player, args.itemId)
-    if not item then return end
-    if args.action == "write" then
-        queueWrite(player, item, duration, tostring(args.token),
-            tonumber(args.startPage), tonumber(args.totalPages))
-    else
-        queueRead(player, item, duration, tostring(args.token),
-            tonumber(args.startPage), tonumber(args.totalPages))
-    end
 end
 
 Events.OnServerCommand.Add(onServerCommand)
@@ -332,4 +190,4 @@ end
 
 Events.OnFillInventoryObjectContextMenu.Add(onFillInventoryObjectContextMenu)
 
-print("[LegacyJournal] client loaded")
+print("[LegacyJournal] client loaded build=" .. tostring(LJ.BUILD))

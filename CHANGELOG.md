@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3
+
+- 优化性能
+
 ## 1.02
 
 - Changed the original content-unit page formula from 10 to 7 pages per 1000
