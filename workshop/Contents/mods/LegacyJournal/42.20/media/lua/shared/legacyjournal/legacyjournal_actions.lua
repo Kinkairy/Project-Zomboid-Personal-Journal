@@ -102,7 +102,7 @@ end
 function LegacyJournalAction:serverStart()
     self:getDuration()
     local active = LJ.activeJournalActions[self.character]
-    if not LJ.canPerformAction(self.character, self.item, self.kind) or active then
+    if self.rejected or not LJ.canPerformAction(self.character, self.item, self.kind) or active then
         self.rejected = true
         self.netAction:forceComplete()
         return
@@ -179,7 +179,7 @@ function LegacyJournalAction:complete()
     if not ok then error(applied) end
     if applied and isServer() then
         self.item:syncItemFields()
-        LJ.sendJournalResult(self.character, self.item, fields)
+        LJ.sendJournalResult(self.character, self.item, fields, self.recipientKey)
     end
     trace(self, applied and "complete" or "rejected-empty")
     return applied == true
@@ -190,14 +190,20 @@ function LegacyJournalAction:animEvent(event, parameter)
 end
 
 -- Parameter names must equal stored fields: NetTimedAction serializes these
--- names and reconstructs new(character,item,kind) on the server.
-function LegacyJournalAction:new(character, item, kind)
+-- names and reconstructs the same arguments on the server. recipientKey is
+-- opaque client-local routing context, never an authorization or progress token.
+function LegacyJournalAction:new(character, item, kind, recipientKey)
     local o = ISBaseTimedAction.new(self, character)
     o.character = character
     o.item = item
     o.kind = kind
+    o.recipientKey = recipientKey
+    if not isServer() and character then
+        o.recipientKey = LJ.getActionActorKey(character)
+    end
     if not character or not LJ.isSupportedItem(item)
-        or (kind ~= "write" and kind ~= "read") then
+        or (kind ~= "write" and kind ~= "read")
+        or type(o.recipientKey) ~= "string" or #o.recipientKey > 1024 then
         o.rejected = true
     end
     o.ignoreHandsWounds = true

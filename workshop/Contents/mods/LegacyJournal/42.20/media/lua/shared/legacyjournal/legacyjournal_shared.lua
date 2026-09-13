@@ -6,8 +6,9 @@ local LJ = LegacyJournal
 LJ._permanentRewardMedia = nil
 
 LJ.VERSION = 6
-LJ.BUILD = "1.3-native-actions-release"
+LJ.BUILD = "1.3.1-release"
 LJ.MODULE = "LegacyJournal"
+LJ.MAX_READ_STATUS_ITEMS = 16
 LJ.WRITE_TEXT_KEY = "ContextMenu_LegacyJournal_Write"
 LJ.NAME_TEXT_KEY = "IGUI_LegacyJournal_Name"
 LJ.RECORDED_AT_TEXT_KEY = "IGUI_LegacyJournal_RecordedAt"
@@ -930,6 +931,48 @@ local function getActiveSkillBookMultiplier(xpObject, perk, nextLevel)
     return 0
 end
 
+-- One target calculation for both the read gate and the actual restoration.
+local function getSkillBookRestoreState(player, entry, savedStates, hasExactSnapshot)
+    local pageCount = tonumber(entry.scriptItem:getNumberOfPages() or 0) or 0
+    if pageCount <= 0 then return nil end
+    local targetPages = clamp(entry.pages, 0, pageCount)
+    local currentPages = tonumber(player:getAlreadyReadPages(entry.fullType) or 0) or 0
+    local result = { targetPages = targetPages, currentPages = currentPages }
+    local xpObject = player:getXp()
+    local nextLevel = player:getPerkLevel(entry.skillBook.perk) + 1
+    if xpObject and entry.minLevel <= nextLevel and nextLevel <= entry.maxLevel then
+        local savedState = getValidatedSkillBookState(entry,
+            savedStates and savedStates[entry.fullType] or nil)
+        result.multiplier = hasExactSnapshot
+            and (savedState and savedState.multiplier or 0)
+            or calculateSkillBookMultiplier(entry, math.max(currentPages, targetPages))
+        result.minLevel = savedState and savedState.minLevel or entry.minLevel
+        result.maxLevel = savedState and savedState.maxLevel or entry.maxLevel
+        result.missingMultiplier = normalizeStoredSkillBookMultiplier(result.multiplier)
+            > normalizeStoredSkillBookMultiplier(getActiveSkillBookMultiplier(
+                xpObject, entry.skillBook.perk, nextLevel))
+    end
+    return result
+end
+
+function LJ.hasSkillBookMultiplierTarget(player, item, onlyMissing)
+    if not LJ.isSkillBooksEnabled() then return false end
+    local books = LJ.getRecoverableSkillBooks(item)
+    local states, exact = LJ.getRecoverableSkillBookStates(item, books)
+    for _, entry in ipairs(LJ.getSkillBookEntries(player, books)) do
+        local restore = getSkillBookRestoreState(player, entry, states, exact)
+        if restore and (restore.multiplier or 0) > 0
+            and (not onlyMissing or restore.missingMultiplier) then return true end
+    end
+    return false
+end
+
+local function resolveSavedPerk(perkId)
+    local perk = PerkFactory.Perks.FromString(perkId)
+    if perk and perk ~= PerkFactory.Perks.None then return perk end
+    return nil
+end
+
 function LJ.captureSkillBookStates(player, books)
     local result = {}
     local observable = {}
@@ -1050,7 +1093,8 @@ function LJ.getReadDelta(player, item)
         for perkId, targetXp in pairs(LJ.getSavedSkills(item)) do
             local currentXp = tonumber(currentSkills[perkId] or 0) or 0
             local targetValue = LJ.getRecoverableSkillXp(targetXp)
-            if normalizeStoredSkillXp(targetValue) > normalizeStoredSkillXp(currentXp) then
+            if resolveSavedPerk(perkId)
+                and normalizeStoredSkillXp(targetValue) > normalizeStoredSkillXp(currentXp) then
                 missingXp = missingXp + (targetValue - currentXp)
                 changedSkills = changedSkills + 1
             end
@@ -1070,8 +1114,8 @@ function LJ.getReadDelta(player, item)
             local currentPages = tonumber(player:getAlreadyReadPages(entry.fullType) or 0) or 0
             local targetPages = clamp(entry.pages, 0, entry.scriptItem:getNumberOfPages())
             -- The client cannot reliably observe multiplayer XP multipliers.
-            -- They remain in the read payload and are restored after reading,
-            -- but must not alone enable the menu's read action.
+            -- Keep ordinary workload based on pages. A multiplier-only repair
+            -- is admitted separately by authority (MP uses readStatus).
             if targetPages > currentPages then
                 missingBooks = missingBooks + 1
             end
@@ -1092,18 +1136,26 @@ function LJ.getReadDelta(player, item)
         end
     end
 
-    return {
+    local delta = {
         xp = missingXp,
         skills = changedSkills,
         recipes = missingRecipes,
         books = missingBooks,
         vhs = missingVhsLines,
     }
+    -- MP clients cannot infer a deficit from an unobservable multiplier.
+    -- A pure repair uses the unchanged base reading workload on both sides.
+    if not LJ.hasDelta(delta) and not isClient()
+        and LJ.hasSkillBookMultiplierTarget(player, item, true) then
+        delta.multiplierRepair = true
+    end
+    return delta
 end
 
 function LJ.hasDelta(delta)
     if not delta then return false end
     return (tonumber(delta.xp or 0) or 0) > 0
+        or delta.multiplierRepair == true
         or (tonumber(delta.skills or 0) or 0) > 0
         or (tonumber(delta.recipes or 0) or 0) > 0
         or (tonumber(delta.books or 0) or 0) > 0
@@ -1128,6 +1180,7 @@ function LJ.getActionSignature(action, item, delta)
         tostring(tonumber(delta.books or 0) or 0),
         tostring(tonumber(delta.vhs or 0) or 0),
     }, "|")
+    if delta.multiplierRepair == true then counts = counts .. "|multiplier-repair" end
 
     if action == "write" then
         return table.concat({
@@ -1362,36 +1415,17 @@ end
 
 function LJ.applySkillBookProgress(player, savedBooks, savedStates, hasExactSnapshot)
     local changed = false
-    local xpObject = player:getXp()
     for _, entry in ipairs(LJ.getSkillBookEntries(player, savedBooks)) do
-        local scriptItem = entry.scriptItem
-        local skillBook = entry.skillBook
-        local pageCount = tonumber(scriptItem:getNumberOfPages() or 0) or 0
-        if pageCount > 0 then
-            local targetPages = clamp(entry.pages, 0, pageCount)
-            local currentPages = tonumber(player:getAlreadyReadPages(entry.fullType) or 0) or 0
-            local effectivePages = math.max(currentPages, targetPages)
-            if targetPages > currentPages then
-                player:setAlreadyReadPages(entry.fullType, targetPages)
+        local restore = getSkillBookRestoreState(player, entry, savedStates, hasExactSnapshot)
+        if restore then
+            if restore.targetPages > restore.currentPages then
+                player:setAlreadyReadPages(entry.fullType, restore.targetPages)
                 changed = true
             end
-
-            local nextLevel = player:getPerkLevel(skillBook.perk) + 1
-            if xpObject and entry.minLevel <= nextLevel and nextLevel <= entry.maxLevel then
-                local savedState = getValidatedSkillBookState(entry,
-                    savedStates and savedStates[entry.fullType] or nil)
-                local multiplier = hasExactSnapshot
-                    and (savedState and savedState.multiplier or 0)
-                    or calculateSkillBookMultiplier(entry, effectivePages)
-                local currentMultiplier = getActiveSkillBookMultiplier(xpObject,
-                    skillBook.perk, nextLevel)
-                if normalizeStoredSkillBookMultiplier(multiplier)
-                    > normalizeStoredSkillBookMultiplier(currentMultiplier) then
-                    addXpMultiplier(player, skillBook.perk, multiplier,
-                        savedState and savedState.minLevel or entry.minLevel,
-                        savedState and savedState.maxLevel or entry.maxLevel)
-                    changed = true
-                end
+            if restore.missingMultiplier then
+                addXpMultiplier(player, entry.skillBook.perk, restore.multiplier,
+                    restore.minLevel, restore.maxLevel)
+                changed = true
             end
         end
     end
@@ -1458,8 +1492,8 @@ function LJ.applyRead(player, item)
     if LJ.isSkillXpEnabled() then
         local xpObject = player:getXp()
         for perkId, targetXp in pairs(LJ.getSavedSkills(item)) do
-            local perk = PerkFactory.Perks.FromString(perkId)
-            if perk and perk ~= PerkFactory.Perks.None then
+            local perk = resolveSavedPerk(perkId)
+            if perk then
                 local currentXp = xpObject:getXP(perk)
                 local targetValue = LJ.getRecoverableSkillXp(targetXp)
                 if targetValue > currentXp then

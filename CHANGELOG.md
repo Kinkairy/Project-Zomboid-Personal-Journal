@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1
+
+- Keeps unavailable skill fields without producing unusable restore deltas.
+- Restores a missing valid skill-book multiplier even when read pages already match.
+- Routes multiplayer supplemental responses to the authenticated local actor.
+
 ## 1.3
 
 - 优化性能

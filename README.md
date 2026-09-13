@@ -8,7 +8,7 @@ Personal Journal（个人日志）是面向 Project Zomboid Build 42.20 的服�
 它使用原版日记本保存人物知识，让同一多人账号的新角色在找回实体日志后，恢复自己尚未掌握的
 部分。
 
-- 当前版本：`1.3`
+- 当前版本：`1.3.1`
 - Mod ID：`LegacyJournal`
 - Workshop ID：`3788037313`
 - 数据格式：`LJ_version=6`
@@ -96,7 +96,7 @@ Personal Journal is a server-authoritative knowledge-recording Mod for Project Z
 It stores character knowledge on a vanilla diary and lets a successor on the same multiplayer account
 restore only the state they are still missing after recovering the physical item.
 
-- Current version: `1.3`
+- Current version: `1.3.1`
 - Mod ID: `LegacyJournal`
 - Workshop ID: `3788037313`
 - Data schema: `LJ_version=6`
