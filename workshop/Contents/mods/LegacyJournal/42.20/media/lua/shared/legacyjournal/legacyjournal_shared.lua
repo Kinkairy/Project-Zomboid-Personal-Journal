@@ -6,7 +6,7 @@ local LJ = LegacyJournal
 LJ._permanentRewardMedia = nil
 
 LJ.VERSION = 6
-LJ.BUILD = "1.3.1-release"
+LJ.BUILD = "1.3.2-release"
 LJ.MODULE = "LegacyJournal"
 LJ.MAX_READ_STATUS_ITEMS = 16
 LJ.WRITE_TEXT_KEY = "ContextMenu_LegacyJournal_Write"

@@ -1,4 +1,7 @@
 {
+    "IGUI_LegacyJournal_Applying": "%1 - applying results",
     "IGUI_LegacyJournal_Name": "%1's Journal",
-    "IGUI_LegacyJournal_RecordedAt": "Recorded: %1"
+    "IGUI_LegacyJournal_RecordedAt": "Recorded: %1",
+    "IGUI_LegacyJournal_WaitActionDone": "%1 - waiting for action completion confirmation",
+    "IGUI_LegacyJournal_WaitServer": "%1 - waiting for server progress"
 }

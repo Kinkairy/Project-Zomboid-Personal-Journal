@@ -8,13 +8,16 @@ Personal Journal（个人日志）是面向 Project Zomboid Build 42.20 的服�
 它使用原版日记本保存人物知识，让同一多人账号的新角色在找回实体日志后，恢复自己尚未掌握的
 部分。
 
-- 当前版本：`1.3.1`
+- 当前版本：`1.3.2`
 - Mod ID：`LegacyJournal`
 - Workshop ID：`3788037313`
 - 数据格式：`LJ_version=6`
 - 外部依赖：无
 - 当前唯一正常开发/回滚基准：`1.3`；上个正式版 `1.2` 仅作兜底（历史标识 `1.02`）
 - 维护状态：冷维护，仅按明确维护需求修复
+
+1.3.2 的多人进度修复、客户端/服务器同步升级要求及实机验证边界见
+[PROGRESS_1.3.2.md](docs/PROGRESS_1.3.2.md)。
 
 完整字段、协议、兼容规则和已知边界见
 [TECHNICAL_REFERENCE.md](https://github.com/Kinkairy/Project-Zomboid-Personal-Journal/blob/main/docs/TECHNICAL_REFERENCE.md)。
@@ -35,6 +38,7 @@ Personal Journal（个人日志）是面向 Project Zomboid Build 42.20 的服�
 | --- | --- |
 | `legacyjournal_shared.lua` | 数据模型、快照、差值、页数、写入与恢复规则 |
 | `legacyjournal_actions.lua` | 原生网络动作生命周期、动画和整页检查点 |
+| `legacyjournal_progress.lua` | 服务端实际进度采样、统一显示和等待状态 |
 | `legacyjournal_client.lua` | 右键菜单、物品转移和多人请求 |
 | `legacyjournal_server.lua` | 活动动作检查点提示及恢复结果补充同步 |
 | `legacyjournal_presentation.lua` | 本地化名称与显示刷新 |
@@ -96,7 +100,7 @@ Personal Journal is a server-authoritative knowledge-recording Mod for Project Z
 It stores character knowledge on a vanilla diary and lets a successor on the same multiplayer account
 restore only the state they are still missing after recovering the physical item.
 
-- Current version: `1.3.1`
+- Current version: `1.3.2`
 - Mod ID: `LegacyJournal`
 - Workshop ID: `3788037313`
 - Data schema: `LJ_version=6`
@@ -104,6 +108,9 @@ restore only the state they are still missing after recovering the physical item
 - Sole normal development/rollback baseline: `1.3`; previous formal `1.2` is emergency fallback only
   (historically identified as `1.02`)
 - Maintenance: cold maintenance; fixes only for explicit maintenance needs
+
+See [PROGRESS_1.3.2.md](docs/PROGRESS_1.3.2.md) for the multiplayer progress fix,
+matching client/server upgrade requirement and in-game verification boundary.
 
 See
 [TECHNICAL_REFERENCE.md](https://github.com/Kinkairy/Project-Zomboid-Personal-Journal/blob/main/docs/TECHNICAL_REFERENCE.md)
@@ -129,6 +136,7 @@ for complete fields, protocol details, compatibility rules, and known boundaries
 | --- | --- |
 | `legacyjournal_shared.lua` | Data model, snapshots, deltas, page counts, writes, and recovery |
 | `legacyjournal_actions.lua` | Native network action lifecycle, animation, and page checkpoints |
+| `legacyjournal_progress.lua` | Server progress samples, unified display, and waiting states |
 | `legacyjournal_client.lua` | Context menus, item transfer, and multiplayer requests |
 | `legacyjournal_server.lua` | Active-action checkpoint hints and supplementary recovery synchronization |
 | `legacyjournal_presentation.lua` | Localized names and presentation refresh |

@@ -1,6 +1,7 @@
 require "TimedActions/ISBaseTimedAction"
 require "TimedActions/ISWriteSomething"
 require "legacyjournal/legacyjournal_shared"
+require "legacyjournal/legacyjournal_progress"
 
 local LJ = LegacyJournal
 LegacyJournalAction = ISBaseTimedAction:derive("LegacyJournalAction")
@@ -57,6 +58,7 @@ function LegacyJournalAction:start()
     end
     self.item:setJobType(label)
     self.item:setJobDelta(self.plan.startPage / self.plan.pages)
+    LJ.beginProgressView(self, label)
     trace(self, "start")
 end
 
@@ -80,23 +82,14 @@ function LegacyJournalAction:saveProgress()
 end
 
 function LegacyJournalAction:update()
+    if isClient() then
+        LJ.updateProgressView(self)
+        return
+    end
     local p = self.plan
     local progress = math.max(0, math.min(1, self:getJobDelta()))
     self.item:setJobDelta((p.startPage + (p.pages - p.startPage) * progress) / p.pages)
-    if isClient() then
-        local page = pageAt(self, progress)
-        if page > (self.lastRequestedPage or p.startPage) then
-            self.lastRequestedPage = page
-            -- A hint to persist progress, not a submitted progress value.
-            -- The server samples its own NetTimedAction clock. No token,
-            -- duration, page, knowledge snapshot or commit is sent.
-            sendClientCommand(self.character, LJ.MODULE, "checkpoint", {
-                itemId = self.item:getID(), kind = self.kind,
-            })
-        end
-    elseif not isServer() then
-        self:saveProgress()
-    end
+    if not isServer() then self:saveProgress() end
 end
 
 function LegacyJournalAction:serverStart()
@@ -104,11 +97,13 @@ function LegacyJournalAction:serverStart()
     local active = LJ.activeJournalActions[self.character]
     if self.rejected or not LJ.canPerformAction(self.character, self.item, self.kind) or active then
         self.rejected = true
+        LJ.publishActionProgress(self, "rejected")
         self.netAction:forceComplete()
         return
     end
     LJ.activeJournalActions[self.character] = self
     ISWriteSomething.serverStart(self)
+    LJ.publishActionProgress(self, "running")
     trace(self, "server-start")
 end
 
@@ -121,11 +116,13 @@ end
 
 function LegacyJournalAction:serverStop()
     self:saveProgress()
+    LJ.publishActionProgress(self, "cancelled")
     release(self)
     trace(self, "server-stop")
 end
 
 local function clearJob(self)
+    LJ.endProgressView(self)
     self.character:setReading(false)
     self.item:setJobDelta(0)
     self.item:setJobType("")
@@ -141,6 +138,7 @@ function LegacyJournalAction:stop()
 end
 
 function LegacyJournalAction:forceCancel()
+    LJ.endProgressView(self)
     -- Queued-but-not-started actions have no progress or animation to clear.
     ISBaseTimedAction.forceCancel(self)
 end
@@ -166,15 +164,18 @@ function LegacyJournalAction:complete()
     if not valid then
         self:saveProgress()
         self.finished = true
+        LJ.publishActionProgress(self, "rejected")
         release(self)
         trace(self, "rejected-state-changed")
         return false
     end
     self.finished = true
+    LJ.publishActionProgress(self, "applying")
     local ok, applied, fields = pcall(function()
         if self.kind == "write" then return LJ.commitWrite(self.character, self.item) end
         return LJ.applyRead(self.character, self.item)
     end)
+    LJ.publishActionProgress(self, ok and applied and "complete" or "rejected")
     release(self)
     if not ok then error(applied) end
     if applied and isServer() then
@@ -192,25 +193,30 @@ end
 -- Parameter names must equal stored fields: NetTimedAction serializes these
 -- names and reconstructs the same arguments on the server. recipientKey is
 -- opaque client-local routing context, never an authorization or progress token.
-function LegacyJournalAction:new(character, item, kind, recipientKey)
+function LegacyJournalAction:new(character, item, kind, recipientKey, progressKey)
     local o = ISBaseTimedAction.new(self, character)
     o.character = character
     o.item = item
     o.kind = kind
     o.recipientKey = recipientKey
+    o.progressKey = progressKey
     if not isServer() and character then
         o.recipientKey = LJ.getActionActorKey(character)
+        o.progressKey = LJ.newProgressKey()
     end
     if not character or not LJ.isSupportedItem(item)
         or (kind ~= "write" and kind ~= "read")
-        or type(o.recipientKey) ~= "string" or #o.recipientKey > 1024 then
+        or type(o.recipientKey) ~= "string" or #o.recipientKey > 1024
+        or not LJ.isProgressKey(o.progressKey) then
         o.rejected = true
     end
     o.ignoreHandsWounds = true
     o.forceProgressBar = true
     o.caloriesModifier = kind == "read" and 0.5 or 1
-    -- Native Accept supplies the server duration to a waiting MP action.
-    o.maxTime = isClient() and -1 or o:getDuration()
+    -- MP presentation is sampled from the server, not advanced by a second
+    -- local countdown. getDuration() still owns the authoritative workload.
+    -- Native Done/Reject still owns completion/cancellation.
+    o.maxTime = isClient() and LJ.PROGRESS_VIEW_SCALE or o:getDuration()
     return o
 end
 

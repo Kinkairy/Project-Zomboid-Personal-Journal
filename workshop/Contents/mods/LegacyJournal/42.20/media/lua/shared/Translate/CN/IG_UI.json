@@ -1,4 +1,7 @@
 {
+    "IGUI_LegacyJournal_Applying": "%1 — 正在处理结果",
     "IGUI_LegacyJournal_Name": "%1的日志",
-    "IGUI_LegacyJournal_RecordedAt": "记录时间：%1"
+    "IGUI_LegacyJournal_RecordedAt": "记录时间：%1",
+    "IGUI_LegacyJournal_WaitActionDone": "%1 — 等待动作完成确认",
+    "IGUI_LegacyJournal_WaitServer": "%1 — 等待服务器进度"
 }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.2
+
+- Drives multiplayer journal progress from server samples rather than a separate
+  client countdown, including the inventory and overhead bars and resumed work.
+- Labels server-progress, result-application and native-completion waits instead
+  of leaving an unexplained full reading bar.
+- Scopes progress responses to an individual action; late, regressive and invalid
+  responses cannot update a later read or a different local player.
+- Keeps native server completion, knowledge validation and whole-page checkpoints.
+
 ## 1.3.1
 
 - Keeps unavailable skill fields without producing unusable restore deltas.
