@@ -1,6 +1,6 @@
 version=1
 id=3788037313
-title=个人日志 / Personal Journal
+title=Personal Journal
 description=[h1]个人日志[/h1]
 [quote]把角色已掌握的技能、配方、技能书和培训媒体记录在原版日记本中。角色死亡后，同一服务器账号的新角色找回实体日志并读完，即可继承其中的知识。[/quote]
 
