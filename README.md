@@ -18,3 +18,6 @@ Use the translation catalog and included generators when changing localized text
 Preserve the matching EN, CN and CH entries. Run the available source validators
 and regression tests before release. Offline validation does not establish
 in-game or multiplayer acceptance.
+
+Release validation is in tests/validate_release.py. Run python3 tests/validate_release.py
+from the repository root, or pass --root to validate an explicit source directory.
