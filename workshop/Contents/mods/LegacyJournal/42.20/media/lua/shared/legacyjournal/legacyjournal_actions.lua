@@ -46,7 +46,14 @@ end
 
 function LegacyJournalAction:start()
     self:getDuration()
-    ISWriteSomething.start(self)
+    -- Only Diary1/Diary2 are supported. Use the native timed-action animation
+    -- API; ISWriteSomething.start owns an interactive text-editor window.
+    -- Knowledge recording has its own authoritative completion, not text edits.
+    self:setAnimVariable("ReadType", self.item:getReadType() or "book")
+    self:setActionAnim(CharacterActionAnims.Read)
+    self:setOverrideHandModels(nil, self.item)
+    self.character:reportEvent("EventRead")
+    self.character:playSound(self:isBook(self.item) and "OpenBook" or "OpenMagazine")
     self.character:setReading(true)
     local label = getText(self.kind == "write" and LJ.WRITE_TEXT_KEY or "ContextMenu_Read")
     if LJ.isWritten(self.item) then

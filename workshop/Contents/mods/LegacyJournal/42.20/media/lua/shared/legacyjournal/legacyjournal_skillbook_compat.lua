@@ -4,7 +4,9 @@ require "TimedActions/ISReadABook"
 -- its final page count to the character. Use the same vanilla setter before
 -- the original completion routine sends the player and item field syncs.
 local version = tostring(getCore():getVersionNumber()):match("^(%d+%.%d+%.%d+)")
-if version == "42.20.4" and ISReadABook and not ISReadABook._legacyJournalInstantPageFix then
+-- The unchanged native completion defect is also reproduced on 42.21.0.
+local verifiedVersion = version == "42.20.4" or version == "42.21.0"
+if verifiedVersion and ISReadABook and not ISReadABook._legacyJournalInstantPageFix then
     local vanillaComplete = ISReadABook.complete
 
     function ISReadABook:complete()
